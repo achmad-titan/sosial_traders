@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Social Traders — Masuk</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    body { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+    body::after {
+      content: '';
+      position: fixed;
+      top: -200px; left: 50%;
+      transform: translateX(-50%);
+      width: 600px; height: 600px;
+      background: radial-gradient(circle, rgba(59,130,246,0.12) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+    .auth-wrap { width: 100%; max-width: 420px; padding: 24px; position: relative; z-index: 1; }
+    .auth-logo {
+      font-family: var(--font-display);
+      font-size: 26px; font-weight: 800;
+      color: var(--blue-bright);
+      text-align: center;
+      margin-bottom: 6px;
+      letter-spacing: -1px;
+    }
+    .auth-logo span { color: var(--text-muted); }
+    .auth-sub { text-align: center; color: var(--text-muted); font-size: 13px; margin-bottom: 32px; }
+    .auth-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 32px;
+    }
+    .tab-bar {
+      display: flex;
+      background: var(--bg3);
+      border-radius: 8px;
+      padding: 3px;
+      margin-bottom: 28px;
+    }
+    .tab-btn {
+      flex: 1;
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-family: var(--font-body);
+      font-size: 13px;
+      font-weight: 500;
+      padding: 8px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .tab-btn.active {
+      background: var(--blue);
+      color: #fff;
+      box-shadow: 0 0 16px var(--blue-glow);
+    }
+    .auth-form { display: none; }
+    .auth-form.active { display: block; animation: fadeUp 0.3s ease; }
+    .auth-footer { text-align: center; margin-top: 20px; color: var(--text-muted); font-size: 12px; }
+    .guest-link {
+      display: block;
+      text-align: center;
+      margin-top: 20px;
+      color: var(--text-muted);
+      font-size: 12px;
+      text-decoration: none;
+    }
+    .guest-link:hover { color: var(--blue-bright); }
+  </style>
+</head>
+<body>
+  <div class="auth-wrap fade-up">
+    <div class="auth-logo">Social<span>Traders</span></div>
+    <p class="auth-sub">Platform komunitas trader profesional</p>
+
+    <div class="auth-card">
+      <div class="tab-bar">
+        <button class="tab-btn active" onclick="switchTab('login')">Masuk</button>
+        <button class="tab-btn" onclick="switchTab('register')">Daftar</button>
+      </div>
+
+      <!-- LOGIN FORM -->
+      <form class="auth-form active" id="form-login" onsubmit="handleLogin(event)">
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" id="login-email" placeholder="nama@email.com" required>
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" id="login-password" placeholder="••••••••" required>
+        </div>
+        <button type="submit" class="btn btn-primary btn-full" id="btn-login">Masuk ke Akun</button>
+      </form>
+
+      <!-- REGISTER FORM -->
+      <form class="auth-form" id="form-register" onsubmit="handleRegister(event)">
+        <div class="form-group">
+          <label>Username</label>
+          <input type="text" id="reg-username" placeholder="trader_hebat" required>
+        </div>
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" id="reg-email" placeholder="nama@email.com" required>
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" id="reg-password" placeholder="Min. 6 karakter" required minlength="6">
+        </div>
+        <button type="submit" class="btn btn-primary btn-full" id="btn-reg">Buat Akun</button>
+      </form>
+
+      <div class="auth-footer">Dengan mendaftar, kamu menyetujui syarat & ketentuan platform.</div>
+    </div>
+
+    <a href="leaderboard.html" class="guest-link">Lanjut tanpa akun &rarr;</a>
+  </div>
+
+  <div id="toast"></div>
+  <script src="app.js"></script>
+  <script>
+    // Redirect hanya jika token DAN data user keduanya valid
+    const _existingUser = Auth.getUser();
+    if (Auth.isLoggedIn() && _existingUser && _existingUser.username) {
+      window.location.href = 'dashboard.html';
+    }
+
+    function switchTab(tab) {
+      document.querySelectorAll('.tab-btn').forEach((b, i) => {
+        b.classList.toggle('active', (i === 0 && tab === 'login') || (i === 1 && tab === 'register'));
+      });
+      document.getElementById('form-login').classList.toggle('active', tab === 'login');
+      document.getElementById('form-register').classList.toggle('active', tab === 'register');
+    }
+
+    async function handleLogin(e) {
+      e.preventDefault();
+      const btn = document.getElementById('btn-login');
+      btn.textContent = 'Memproses...'; btn.disabled = true;
+      try {
+        // Step 1: Login dan dapat token
+        const data = await apiFetch('/login', {
+          method: 'POST',
+          body: JSON.stringify({
+            email: document.getElementById('login-email').value,
+            password: document.getElementById('login-password').value
+          })
+        });
+
+        const tempToken = data.access_token;
+
+        // Step 2: Ambil profil pakai token sementara
+        const profilRes = await fetch(API + '/profil', {
+          headers: { 'Authorization': `Bearer ${tempToken}` }
+        });
+        if (!profilRes.ok) throw new Error('Gagal mengambil data profil');
+        const profil = await profilRes.json();
+
+        // Step 3: Simpan DULU, baru redirect — tanpa setTimeout agar tidak ada jeda
+        Auth.save(tempToken, profil.data_user);
+        showToast('Selamat datang kembali!', 'success');
+        window.location.href = 'dashboard.html'; // langsung, tanpa delay
+      } catch (err) {
+        Auth.clear();
+        showToast(err.message, 'error');
+        btn.textContent = 'Masuk ke Akun'; btn.disabled = false;
+      }
+    }
+
+    async function handleRegister(e) {
+      e.preventDefault();
+      const btn = document.getElementById('btn-reg');
+      btn.textContent = 'Membuat akun...'; btn.disabled = true;
+      try {
+        await apiFetch('/signup', {
+          method: 'POST',
+          body: JSON.stringify({
+            username: document.getElementById('reg-username').value,
+            email: document.getElementById('reg-email').value,
+            password: document.getElementById('reg-password').value
+          })
+        });
+        showToast('Akun berhasil dibuat! Silakan masuk.', 'success');
+        setTimeout(() => switchTab('login'), 1000);
+      } catch (err) {
+        showToast(err.message, 'error');
+      } finally {
+        btn.textContent = 'Buat Akun'; btn.disabled = false;
+      }
+    }
+  </script>
+</body>
+</html>

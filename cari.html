@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Social Traders — Cari Trader</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .search-bar {
+      position: relative; margin-bottom: 28px;
+    }
+    .search-bar input {
+      width: 100%;
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      color: var(--text);
+      font-family: var(--font-body);
+      font-size: 15px;
+      padding: 14px 20px 14px 48px;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .search-bar input:focus {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 3px var(--blue-dim);
+    }
+    .search-bar .search-icon {
+      position: absolute; left: 16px; top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted); font-size: 18px;
+    }
+    .result-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 12px;
+      display: flex; align-items: center;
+      justify-content: space-between;
+      text-decoration: none; color: inherit;
+      transition: border-color 0.2s, transform 0.15s;
+    }
+    .result-card:hover {
+      border-color: var(--border-bright);
+      transform: translateX(4px);
+    }
+    .result-left { display: flex; align-items: center; gap: 14px; }
+    .result-name { font-weight: 600; font-size: 14px; }
+    .result-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+    .result-stats { display: flex; gap: 20px; align-items: center; }
+    .quick-search {
+      display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 24px;
+    }
+    .quick-tag {
+      padding: 5px 12px;
+      border-radius: 20px;
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      color: var(--text-muted); font-size: 12px;
+      cursor: pointer; transition: all 0.2s;
+      font-family: var(--font-body);
+    }
+    .quick-tag:hover { border-color: var(--blue); color: var(--blue-bright); }
+    @media (max-width: 768px) {
+      .result-stats { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <nav>
+    <a class="nav-logo" href="index.html">Social<span>Traders</span></a>
+    <div class="nav-links"></div>
+    <div class="nav-auth"></div>
+  </nav>
+
+  <div class="page">
+    <div class="container" style="max-width:760px">
+      <div class="fade-up">
+        <div class="page-title">Cari Trader</div>
+        <div class="page-subtitle">Temukan trader publik berdasarkan username</div>
+      </div>
+
+      <div class="search-bar fade-up">
+        <span class="search-icon">&#128269;</span>
+        <input type="text" id="search-input"
+          placeholder="Ketik username trader..."
+          oninput="handleSearch(this.value)"
+          autocomplete="off">
+      </div>
+
+      <div id="results-container">
+        <div class="empty-state">
+          <p>Ketik username untuk mulai mencari</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast"></div>
+  <script src="app.js"></script>
+  <script>
+    renderNav('cari.html');
+
+    let searchTimer = null;
+
+    function handleSearch(val) {
+      clearTimeout(searchTimer);
+      const query = val.trim();
+
+      if (!query) {
+        document.getElementById('results-container').innerHTML =
+          `<div class="empty-state"><p>Ketik username untuk mulai mencari</p></div>`;
+        return;
+      }
+
+      document.getElementById('results-container').innerHTML =
+        `<div style="padding:30px;text-align:center;color:var(--text-muted)">Mencari...</div>`;
+
+      searchTimer = setTimeout(() => searchTrader(query), 400);
+    }
+
+    async function searchTrader(query) {
+      try {
+        const data = await apiFetch(`/profil-publik/${query}`);
+        renderResult([data]);
+      } catch (err) {
+        // Try to show partial if not found
+        document.getElementById('results-container').innerHTML = `
+          <div class="empty-state">
+            <p>Tidak ada trader publik dengan username "<strong>${query}</strong>"</p>
+          </div>`;
+      }
+    }
+
+    function renderResult(results) {
+      if (!results.length) {
+        document.getElementById('results-container').innerHTML =
+          `<div class="empty-state"><p>Tidak ditemukan</p></div>`;
+        return;
+      }
+
+      document.getElementById('results-container').innerHTML = results.map(r => {
+        const totalSaldo = r.portofolio_trading
+          ? r.portofolio_trading.reduce((s, a) => s + (a.saldo||0), 0)
+          : 0;
+        const jumlahAkun = r.portofolio_trading ? r.portofolio_trading.length : 0;
+
+        return `<a class="result-card fade-up" href="profil.html?user=${r.username}">
+          <div class="result-left">
+            <div class="avatar avatar-lg">${avatarLetter(r.username)}</div>
+            <div>
+              <div class="result-name">${r.username}</div>
+              <div class="result-sub">${jumlahAkun} akun aktif &nbsp;&bull;&nbsp; <span class="badge badge-green" style="font-size:10px">${r.status || 'Publik'}</span></div>
+            </div>
+          </div>
+          <div class="result-stats">
+            <div style="text-align:right">
+              <div style="font-weight:600;font-size:13px">$${Number(totalSaldo).toLocaleString('en-US',{minimumFractionDigits:2})}</div>
+              <div style="font-size:11px;color:var(--text-muted)">Total Saldo</div>
+            </div>
+            <span class="btn btn-ghost btn-sm">Lihat Profil</span>
+          </div>
+        </a>`;
+      }).join('');
+    }
+  </script>
+</body>
+</html>

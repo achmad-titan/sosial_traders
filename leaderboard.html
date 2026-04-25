@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Social Traders — Leaderboard</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .lb-filters {
+      display: flex; gap: 8px; margin-bottom: 24px; flex-wrap: wrap;
+    }
+    .filter-btn {
+      padding: 6px 16px;
+      border-radius: 20px;
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      font-size: 12px; font-weight: 500;
+      cursor: pointer; transition: all 0.2s;
+      font-family: var(--font-body);
+    }
+    .filter-btn.active, .filter-btn:hover {
+      border-color: var(--blue);
+      color: var(--blue-bright);
+      background: var(--blue-dim);
+    }
+    .lb-table-wrap {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .lb-row {
+      display: grid;
+      grid-template-columns: 48px 1fr 120px 120px 120px 80px;
+      align-items: center;
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border);
+      transition: background 0.15s;
+      text-decoration: none;
+      color: inherit;
+    }
+    .lb-row:last-child { border-bottom: none; }
+    .lb-row:hover { background: var(--blue-dim); cursor: pointer; }
+    .lb-row.header {
+      background: var(--bg3);
+      font-size: 11px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-weight: 600;
+    }
+    .lb-row.header:hover { background: var(--bg3); cursor: default; }
+    .rank-num {
+      font-family: var(--font-display);
+      font-size: 15px; font-weight: 700;
+    }
+    .trader-cell { display: flex; align-items: center; gap: 10px; }
+    .trader-name {
+      font-weight: 600; font-size: 13px;
+    }
+    .trader-sub { font-size: 11px; color: var(--text-muted); }
+    .top3 {
+      background: linear-gradient(90deg, rgba(59,130,246,0.05), transparent);
+    }
+    @media (max-width: 768px) {
+      .lb-row { grid-template-columns: 36px 1fr 80px 80px; }
+      .lb-row > *:nth-child(4),
+      .lb-row > *:nth-child(6) { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <nav>
+    <a class="nav-logo" href="index.html">Social<span>Traders</span></a>
+    <div class="nav-links"></div>
+    <div class="nav-auth"></div>
+  </nav>
+
+  <div class="page">
+    <div class="container">
+      <div class="fade-up">
+        <div class="page-title">Papan Peringkat</div>
+        <div class="page-subtitle">Trader terbaik berdasarkan performa akun publik</div>
+      </div>
+
+      <div class="lb-filters fade-up">
+        <button class="filter-btn active" onclick="setSort('saldo', this)">Total Saldo</button>
+        <button class="filter-btn" onclick="setSort('profit', this)">Profit %</button>
+        <button class="filter-btn" onclick="setSort('akun', this)">Jumlah Akun</button>
+      </div>
+
+      <div class="lb-table-wrap fade-up">
+        <div class="lb-row header">
+          <span>#</span>
+          <span>Trader</span>
+          <span>Total Saldo</span>
+          <span>Profit %</span>
+          <span>Jumlah Akun</span>
+          <span></span>
+        </div>
+        <div id="lb-body">
+          <div style="padding:40px; text-align:center; color:var(--text-muted)">Memuat data...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast"></div>
+  <script src="app.js"></script>
+  <script>
+    renderNav('leaderboard.html');
+
+    let allData = [];
+    let sortKey = 'saldo';
+
+    async function loadLeaderboard() {
+      try {
+        const data = await apiFetch('/leaderboard');
+        allData = data.leaderboard;
+        render();
+      } catch (err) {
+        document.getElementById('lb-body').innerHTML =
+          `<div style="padding:40px;text-align:center;color:var(--red)">${err.message}</div>`;
+      }
+    }
+
+    function setSort(key, btn) {
+      sortKey = key;
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      render();
+    }
+
+    function render() {
+      const sorted = [...allData].sort((a, b) => {
+        if (sortKey === 'saldo') return b.total_saldo - a.total_saldo;
+        if (sortKey === 'profit') return (b.avg_profit||0) - (a.avg_profit||0);
+        if (sortKey === 'akun') return b.jumlah_akun - a.jumlah_akun;
+        return 0;
+      });
+
+      if (!sorted.length) {
+        document.getElementById('lb-body').innerHTML =
+          `<div class="empty-state"><p>Belum ada trader publik</p></div>`;
+        return;
+      }
+
+      document.getElementById('lb-body').innerHTML = sorted.map((t, i) => {
+        const rank = i + 1;
+        const rankClass = rank === 1 ? 'rank-1' : rank === 2 ? 'rank-2' : rank === 3 ? 'rank-3' : '';
+        const topClass = rank <= 3 ? 'top3' : '';
+        const rankLabel = rank === 1 ? '1' : rank === 2 ? '2' : rank === 3 ? '3' : rank;
+        const profit = t.avg_profit !== undefined ? t.avg_profit : 0;
+        const profitClass = profit >= 0 ? 'stat-up' : 'stat-down';
+
+        return `<div class="lb-row ${topClass}" onclick="window.location='profil.html?user=${t.username}'">
+          <span class="rank-num ${rankClass}">${rankLabel}</span>
+          <div class="trader-cell">
+            <div class="avatar">${avatarLetter(t.username)}</div>
+            <div>
+              <div class="trader-name">${t.username}</div>
+              <div class="trader-sub">${t.jumlah_akun} akun aktif</div>
+            </div>
+          </div>
+          <span style="font-weight:600">$${Number(t.total_saldo).toLocaleString('en-US', {minimumFractionDigits:2})}</span>
+          <span class="${profitClass}">${profit >= 0 ? '+' : ''}${Number(profit).toFixed(2)}%</span>
+          <span>${t.jumlah_akun}</span>
+          <span><a href="profil.html?user=${t.username}" class="btn btn-ghost btn-sm" onclick="event.stopPropagation()">Lihat</a></span>
+        </div>`;
+      }).join('');
+    }
+
+    loadLeaderboard();
+  </script>
+</body>
+</html>

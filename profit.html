@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Social Traders — Profil</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .profile-header {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 32px;
+      margin-bottom: 24px;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 20px;
+    }
+    .profile-left { display: flex; align-items: center; gap: 20px; }
+    .profile-meta h2 {
+      font-family: var(--font-display);
+      font-size: 24px; font-weight: 800;
+      margin-bottom: 4px;
+    }
+    .profile-meta p { font-size: 13px; color: var(--text-muted); }
+    .profile-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .profile-stats {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;
+      margin-bottom: 24px;
+    }
+    .pstat {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      text-align: center;
+    }
+    .account-item {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 12px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .account-item:hover { border-color: var(--border-bright); }
+    .section-title {
+      font-family: var(--font-display);
+      font-size: 16px; font-weight: 700;
+      margin-bottom: 14px;
+    }
+    .share-strip {
+      background: var(--blue-dim);
+      border: 1px solid var(--border-bright);
+      border-radius: 10px;
+      padding: 12px 16px;
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 24px;
+      font-size: 13px; color: var(--blue-bright);
+    }
+    @media (max-width: 768px) {
+      .profile-header { flex-direction: column; }
+      .profile-stats { grid-template-columns: 1fr 1fr; }
+      .account-item { flex-direction: column; align-items: flex-start; gap: 10px; }
+    }
+  </style>
+</head>
+<body>
+  <nav>
+    <a class="nav-logo" href="index.html">Social<span>Traders</span></a>
+    <div class="nav-links"></div>
+    <div class="nav-auth"></div>
+  </nav>
+
+  <div class="page">
+    <div class="container" style="max-width:800px">
+      <div id="profile-content">
+        <div style="padding:80px;text-align:center;color:var(--text-muted)">Memuat profil...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL REPORT -->
+  <div class="modal-overlay" id="modal-report">
+    <div class="modal" style="position:relative">
+      <h3 class="modal-title">Laporkan Akun</h3>
+      <form onsubmit="submitReport(event)">
+        <div class="form-group">
+          <label>Alasan Laporan</label>
+          <textarea id="report-reason" placeholder="Jelaskan alasan pelaporanmu..." required></textarea>
+        </div>
+        <div style="display:flex;gap:10px">
+          <button type="button" class="btn btn-ghost btn-full" onclick="closeReport()">Batal</button>
+          <button type="submit" class="btn btn-danger btn-full" id="btn-report-submit">Laporkan</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="toast"></div>
+  <script src="app.js"></script>
+  <script>
+    renderNav('');
+
+    const params = new URLSearchParams(location.search);
+    const targetUsername = params.get('user');
+    const isLogin = Auth.isLoggedIn();
+    const currentUser = Auth.getUser();
+
+    if (!targetUsername) window.location.href = 'cari.html';
+
+    async function loadProfile() {
+      try {
+        const data = await apiFetch(`/profil-publik/${targetUsername}`);
+        renderProfile(data);
+      } catch (err) {
+        document.getElementById('profile-content').innerHTML = `
+          <div class="empty-state">
+            <div class="page-title" style="font-size:20px">Profil Tidak Ditemukan</div>
+            <p>${err.message}</p>
+            <a href="cari.html" class="btn btn-ghost" style="margin-top:16px">Kembali Cari</a>
+          </div>`;
+      }
+    }
+
+    function renderProfile(data) {
+      const totalSaldo = data.portofolio_trading.reduce((s, a) => s + (a.saldo||0), 0);
+      const avgProfit = data.portofolio_trading.length
+        ? (data.portofolio_trading.reduce((s, a) => s + (a.profit_persen||0), 0) / data.portofolio_trading.length).toFixed(2)
+        : '0.00';
+      const isSelf = currentUser && currentUser.username === targetUsername;
+
+      const actionButtons = isSelf
+        ? `<a href="dashboard.html" class="btn btn-primary btn-sm">Dashboard Saya</a>`
+        : isLogin
+          ? `<button class="btn btn-primary btn-sm" onclick="followUser()">Follow</button>
+             <button class="btn btn-danger btn-sm" onclick="openReport()">Laporkan</button>`
+          : `<div class="locked-banner" style="margin:0">
+               <a href="index.html" style="color:var(--blue-bright)">Masuk</a> untuk follow atau laporkan
+             </div>`;
+
+      const shareUrl = `${location.origin}/profil.html?user=${targetUsername}`;
+
+      document.getElementById('profile-content').innerHTML = `
+        <div class="fade-up">
+          <div class="share-strip">
+            <span>Bagikan profil: <strong>${shareUrl}</strong></span>
+            <button class="btn btn-primary btn-sm" onclick="copyLink('${shareUrl}')">Salin</button>
+          </div>
+
+          <div class="profile-header">
+            <div class="profile-left">
+              <div class="avatar avatar-xl">${avatarLetter(data.username)}</div>
+              <div class="profile-meta">
+                <h2>${data.username}</h2>
+                <p>Status: <span class="badge badge-green">${data.status}</span></p>
+                <p style="margin-top:8px">${data.portofolio_trading.length} akun MT5 terdaftar</p>
+              </div>
+            </div>
+            <div class="profile-actions">${actionButtons}</div>
+          </div>
+
+          <div class="profile-stats">
+            <div class="pstat">
+              <div class="stat-value">$${Number(totalSaldo).toLocaleString('en-US',{minimumFractionDigits:2})}</div>
+              <div class="stat-label">Total Saldo</div>
+            </div>
+            <div class="pstat">
+              <div class="stat-value ${avgProfit >= 0 ? 'stat-up' : 'stat-down'}">${avgProfit >= 0 ? '+' : ''}${avgProfit}%</div>
+              <div class="stat-label">Rata-rata Profit</div>
+            </div>
+            <div class="pstat">
+              <div class="stat-value">${data.portofolio_trading.length}</div>
+              <div class="stat-label">Akun Aktif</div>
+            </div>
+          </div>
+
+          <div class="section-title">Portofolio Trading</div>
+          ${data.portofolio_trading.length
+            ? data.portofolio_trading.map(a => `
+              <div class="account-item">
+                <div>
+                  <div style="font-weight:600;font-size:13px">${a.server}</div>
+                  <div style="font-size:11px;color:var(--text-muted)">MT5 Server</div>
+                </div>
+                <div style="display:flex;gap:24px;align-items:center">
+                  <div>
+                    <div class="stat-value" style="font-size:16px">$${Number(a.saldo).toLocaleString('en-US',{minimumFractionDigits:2})}</div>
+                    <div class="stat-label">Saldo</div>
+                  </div>
+                  <span class="badge badge-blue">MT5</span>
+                </div>
+              </div>`).join('')
+            : `<div class="empty-state"><p>Tidak ada akun yang ditampilkan</p></div>`
+          }
+        </div>`;
+    }
+
+    async function followUser() {
+      try {
+        const data = await apiFetch(`/follow/${targetUsername}`, { method: 'POST' });
+        showToast(data.pesan, 'success');
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+
+    function openReport() { document.getElementById('modal-report').classList.add('open'); }
+    function closeReport() { document.getElementById('modal-report').classList.remove('open'); }
+
+    async function submitReport(e) {
+      e.preventDefault();
+      const btn = document.getElementById('btn-report-submit');
+      btn.textContent = 'Mengirim...'; btn.disabled = true;
+      try {
+        await apiFetch(`/report/${targetUsername}`, {
+          method: 'POST',
+          body: JSON.stringify({ alasan: document.getElementById('report-reason').value })
+        });
+        showToast('Laporan berhasil dikirim', 'success');
+        closeReport();
+      } catch (err) {
+        showToast(err.message, 'error');
+      } finally {
+        btn.textContent = 'Laporkan'; btn.disabled = false;
+      }
+    }
+
+    function copyLink(url) {
+      navigator.clipboard.writeText(url);
+      showToast('Link disalin!', 'success');
+    }
+
+    loadProfile();
+  </script>
+</body>
+</html>
